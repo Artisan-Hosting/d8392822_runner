@@ -1,0 +1,21 @@
+[package]
+name = "ais_d8392822"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+#artisan_middleware = "^4.3.0"
+artisan_middleware = { path = "/home/dwhitfield/Developer/Artisan_Hosting/Libraries/artisan_middleware_lib" }
+config = "0.14.0"
+serde = "1.0.210"
+serde_json = "1.0.128"
+toml = "0.8.19"
+# Pretty printing
+simple_pretty = "0.1.0"
+tokio = "1.40.0"
+rng = "0.1.0"
+rand = "0.8.5"
+colored = "2.1.0"
+notify = "6.1.1"
+nix = "0.29.0"
+signal-hook = "0.3.17"

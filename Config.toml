@@ -1,0 +1,5 @@
+[app_specific]
+interval_seconds = "30"
+monitor_path = "./"
+project_path = "./"
+changes_needed = "10" # Guess config for now 

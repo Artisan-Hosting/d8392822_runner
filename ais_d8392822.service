@@ -1,0 +1,22 @@
+[Unit]
+Description=A custom runtime management software for dynamically reloading projects managed by artisan hosting
+After=network.target
+
+[Service]
+Type=simple
+KillMode=process
+Environment="NVM_DIR=/var/www/.nvm"
+Environment="PATH=/var/www/.nvm/versions/node/v23.5.0/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/artisan/bin/ais_d8392822
+WorkingDirectory=/etc/ais_d8392822
+ExecReload=/bin/kill -SIGHUP $MAINPID
+KillSignal=SIGUSR1
+Restart=on-failure
+RestartSec=5
+User=www-data
+Environment="RUST_LOG=info"
+StandardOutput=file:/var/log/ais_d8392822.log
+StandardError=file:/var/log/ais_d8392822_error.log
+
+[Install]
+WantedBy=multi-user.target
