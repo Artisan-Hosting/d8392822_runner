@@ -31,7 +31,7 @@ pub async fn create_child(
 
     // using capture output false to pipe to stdout to the running stdout
     match spawn_complex_process(&mut command, Some(settings.project_path()), false, false).await {
-        Ok(spawned_child) => {
+        Ok(mut spawned_child) => {
             // initialize monitor loop.
             spawned_child.monitor_usage().await;
             // read the pid from the state

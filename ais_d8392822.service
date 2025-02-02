@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-KillMode=process
+KillMode=mixed
 Environment="NVM_DIR=/var/www/.nvm"
 Environment="PATH=/var/www/.nvm/versions/node/v23.5.0/bin:/usr/local/bin:/usr/bin:/bin"
 ExecStart=/opt/artisan/bin/ais_d8392822

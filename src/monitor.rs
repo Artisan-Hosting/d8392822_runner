@@ -8,7 +8,10 @@ use std::thread;
 use std::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
-pub async fn monitor_directory(dir: PathType) -> notify::Result<UnboundedReceiver<Event>> {
+pub async fn monitor_directory(
+    dir: PathType,
+    ignored_subdirs: Option<Vec<PathType>>,
+) -> notify::Result<UnboundedReceiver<Event>> {
     log!(
         LogLevel::Trace,
         "Initializing directory watcher for path: {}",
@@ -33,6 +36,16 @@ pub async fn monitor_directory(dir: PathType) -> notify::Result<UnboundedReceive
     // Clone the Arc to move into the thread
     let watcher_clone = watcher.clone();
 
+    // Normalize ignored subdirectory paths for comparison
+    let ignored_subdirs: Vec<PathType> = if let Some(subdirs) = ignored_subdirs {
+        subdirs
+        .into_iter()
+        .map(|path| PathType::PathBuf(dir.join(path))) // Convert to full paths relative to the monitored directory
+        .collect()
+    } else {
+        Vec::new()
+    };
+
     // Spawn a thread to forward events to the async channel
     log!(
         LogLevel::Trace,
@@ -50,6 +63,21 @@ pub async fn monitor_directory(dir: PathType) -> notify::Result<UnboundedReceive
                             "Directory change event received: {:#?}",
                             event
                         );
+
+                        // Check if the event affects ignored subdirectories
+                        let should_ignore = event.paths.iter().any(|path| {
+                            ignored_subdirs.iter().any(|ignored| path.starts_with(ignored))
+                        });
+
+                        if should_ignore {
+                            log!(
+                                LogLevel::Trace,
+                                "Ignoring event for ignored subdirectory: {:#?}",
+                                event
+                            );
+                            continue;
+                        }
+
                         if event_tx.send(event).is_err() {
                             log!(
                                 LogLevel::Error,

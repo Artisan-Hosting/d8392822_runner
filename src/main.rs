@@ -81,6 +81,9 @@ async fn main() {
 
     // Running npm install 
     log!(LogLevel::Trace, "Running npm install");
+    state.data = "Primary Install and run".to_string();
+    state.status = Status::Building;
+    update_state(&mut state, &state_path, None).await;
     if let Err(err) = run_install_process(&settings, &mut state, &state_path).await {
         log!(LogLevel::Error, "{}", err)
     }
@@ -88,6 +91,8 @@ async fn main() {
 
 
     log!(LogLevel::Trace, "Spawning child process...");
+    state.status = Status::Running;
+    update_state(&mut state, &state_path, None).await;
     let mut child: SupervisedChild = create_child(&mut state, &state_path, &settings).await;
 
     match child.clone().await.running().await {
@@ -96,13 +101,11 @@ async fn main() {
             let xid: u32 = child.clone().await.get_pid().await.unwrap();
             log!(LogLevel::Info, "Child spawned: {}", xid);
             state.data = format!("Child spawned: {}", xid);
-            state.status = Status::Building;
-            update_state(&mut state, &state_path, None).await;
         }
         false => {
             log!(LogLevel::Error, "Failed to spawn child process");
             let error = ErrorArrayItem::new(Errors::GeneralError, "child not spawned".to_string());
-            state.error_log.push(error);
+            log_error(&mut state, error, &state_path).await;
             wind_down_state(&mut state, &state_path).await;
             std::process::exit(100);
         }
@@ -112,7 +115,7 @@ async fn main() {
 
     // Start monitoring the directory and get the asynchronous receiver
     log!(LogLevel::Trace, "Starting directory monitoring...");
-    let mut event_rx = match monitor_directory(settings.safe_path()).await {
+    let mut event_rx = match monitor_directory(settings.safe_path(), settings.ignored_paths()).await {
         Ok(receiver) => {
             log!(LogLevel::Trace, "Successfully started directory monitoring");
             receiver
@@ -140,6 +143,7 @@ async fn main() {
                     log!(LogLevel::Info, "Reached {} changes, handling event", trigger_count);
                     state.event_counter += 1;
                     state.status = Status::Building;
+                    state.data = "Source updated, rebuilding".to_string();
                     update_state(&mut state, &state_path, None).await;
                     log!(LogLevel::Info, "Killing the child");
 
@@ -149,6 +153,8 @@ async fn main() {
                             log!(LogLevel::Trace, "Spawning child process...");
                             child = create_child(&mut state, &state_path, &settings).await;
                             log!(LogLevel::Debug, "New child process spawned: {}", child.get_pid().await.unwrap());
+                            state.status = Status::Running;
+                            update_state(&mut state, &state_path, None).await;
                         },
                         Err(error) => {
                             log!(LogLevel::Error, "Failed to wait for child process termination: {}", error);
@@ -164,6 +170,8 @@ async fn main() {
 
                 if !child.clone().await.running().await {
                     log!(LogLevel::Warn, "Child process {:?} is not running. Restarting...", child.get_pid().await);
+                    // state.status = Status::Building;
+                    // update_state(&mut state, &state_path, None).await;
 
                     if let Ok(_) = child.kill().await {
                         log!(LogLevel::Info, "Executed the previous child")
@@ -196,12 +204,7 @@ async fn main() {
 
                     state.status = Status::Running;
                     update_state(&mut state, &state_path, Some(metrics)).await;
-                } else {
-                    state.data = String::from("Failed to get metric data");
-                    state.error_log.push(ErrorArrayItem::new(Errors::GeneralError, "Failed to get metric data from the child"));
-                    state.status = Status::Warning;
-                    update_state(&mut state, &state_path, None).await;
-                }
+                };
 
 
             }
@@ -215,6 +218,9 @@ async fn main() {
 
         if reload.load(Ordering::Relaxed) {
             log!(LogLevel::Debug, "Reloading");
+            state.status = Status::Building;
+            state.data = String::from("Reloading");
+            update_state(&mut state, &state_path, None).await;
 
             // reload config file
             config = get_config();
@@ -233,12 +239,16 @@ async fn main() {
             // creating new service
             child = create_child(&mut state, &state_path, &settings).await;
             log!(LogLevel::Info, "New child process spawned.");
+            state.status = Status::Running;
+            update_state(&mut state, &state_path, None).await;
 
             reload.store(false, Ordering::Relaxed);
         }
 
         if exit_graceful.load(Ordering::Relaxed) {
             log!(LogLevel::Debug, "Exiting gracefully");
+            state.status = Status::Stopping;
+            update_state(&mut state, &state_path, None).await;
             match timeout(Duration::from_secs(3), child.kill()).await {
                 Ok(execution_result) => match execution_result {
                     Ok(_) => {
