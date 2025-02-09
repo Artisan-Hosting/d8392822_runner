@@ -1,10 +1,9 @@
 use artisan_middleware::{
     aggregator::Status,
-    common::{log_error, update_state, wind_down_state},
     config::AppConfig,
     dusa_collection_utils::{self},
     process_manager::SupervisedChild,
-    state_persistence::{AppState, StatePersistence},
+    state_persistence::{log_error, update_state, wind_down_state, AppState, StatePersistence},
 };
 use child::{create_child, run_install_process};
 use config::{generate_application_state, get_config, specific_config};

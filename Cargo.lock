@@ -121,8 +121,6 @@ dependencies = [
 [[package]]
 name = "artisan_middleware"
 version = "4.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58a3ad33ffcadfc268a078264d255c894186c5b18e4af2af71e3bab5d239ba20"
 dependencies = [
  "aes-gcm",
  "chrono",

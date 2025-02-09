@@ -1,6 +1,5 @@
 use artisan_middleware::{
-    aggregator::Status, common::update_state, config::AppConfig, state_persistence::{AppState, StatePersistence}, timestamp::current_timestamp, version::{aml_version, str_to_version},
-    dusa_collection_utils
+    aggregator::Status, config::AppConfig, dusa_collection_utils, state_persistence::{update_state, AppState, StatePersistence}, timestamp::current_timestamp, version::{aml_version, str_to_version}
 };
 use colored::Colorize;
 use config::{Config, ConfigError, File};
@@ -20,26 +19,6 @@ pub fn get_config() -> AppConfig {
         }
     };
     config.app_name = Stringy::from(env!("CARGO_PKG_NAME").to_string());
-
-    let raw_version: SoftwareVersion = {
-        // defining the version
-        let library_version: Version = aml_version();
-        let software_version: Version = str_to_version(env!("CARGO_PKG_VERSION"), Some(VersionCode::Production));
-        
-        SoftwareVersion {
-            application: software_version,
-            library: library_version,
-        }
-    };
-
-    config.version = match serde_json::to_string(&raw_version) {
-        Ok(ver) => ver,
-        Err(err) => {
-            log!(LogLevel::Error, "{}", err);
-            std::process::exit(100);
-        },
-    };
-
     config.database = None;
     config
 }
@@ -174,6 +153,7 @@ pub async fn generate_application_state(state_path: &PathType, config: &AppConfi
             let mut state = AppState {
                 data: String::new(),
                 last_updated: current_timestamp(),
+                stared_at: current_timestamp(),
                 event_counter: 0,
                 error_log: vec![],
                 config: config.clone(),
