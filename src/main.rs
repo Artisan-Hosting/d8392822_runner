@@ -10,8 +10,8 @@ use config::{generate_application_state, get_config, specific_config};
 use dusa_collection_utils::{
     errors::{ErrorArrayItem, Errors},
     log,
-    log::LogLevel,
-    types::PathType,
+    logger::LogLevel,
+    types::pathtype::PathType,
 };
 use monitor::monitor_directory;
 use signals::{sighup_watch, sigusr_watch};
@@ -78,7 +78,7 @@ async fn main() {
         settings.safe_path()
     );
 
-    // Running npm install 
+    // Running npm install
     log!(LogLevel::Trace, "Running npm install");
     state.data = "Primary Install and run".to_string();
     state.status = Status::Building;
@@ -86,8 +86,6 @@ async fn main() {
     if let Err(err) = run_install_process(&settings, &mut state, &state_path).await {
         log!(LogLevel::Error, "{}", err)
     }
-
-
 
     log!(LogLevel::Trace, "Spawning child process...");
     state.status = Status::Running;
@@ -114,7 +112,8 @@ async fn main() {
 
     // Start monitoring the directory and get the asynchronous receiver
     log!(LogLevel::Trace, "Starting directory monitoring...");
-    let mut event_rx = match monitor_directory(settings.safe_path(), settings.ignored_paths()).await {
+    let mut event_rx = match monitor_directory(settings.safe_path(), settings.ignored_paths()).await
+    {
         Ok(receiver) => {
             log!(LogLevel::Trace, "Successfully started directory monitoring");
             receiver
@@ -167,7 +166,26 @@ async fn main() {
             _ = tokio::time::sleep(Duration::from_secs(3)) => {
                 log!(LogLevel::Trace, "Periodic task triggered - checking child process status...");
 
-                if !child.clone().await.running().await {
+                // writing child stardarts to the state
+                match child.get_std_out().await {
+                    Ok(mut stdvec) => {
+                        state.stdout.append(&mut stdvec);
+                    },
+                    Err(err) => {
+                        log!(LogLevel::Error, "Failed to get standart out: {}", err.err_mesg)
+                    },
+                }
+
+                match child.get_std_err().await {
+                    Ok(mut errvec) => {
+                        state.stderr.append(&mut errvec);
+                    },
+                    Err(err) => {
+                        log!(LogLevel::Error, "Failed to get standart error: {}", err.err_mesg)
+                    },
+                }
+
+                if !child.running().await {
                     log!(LogLevel::Warn, "Child process {:?} is not running. Restarting...", child.get_pid().await);
                     // state.status = Status::Building;
                     // update_state(&mut state, &state_path, None).await;
@@ -179,6 +197,7 @@ async fn main() {
                     log!(LogLevel::Info, "One shot finished, Spawning new child");
 
                     child = create_child(&mut state, &state_path, &settings).await;
+                    // child.
                     let message = "New child process spawned";
 
                     log!(LogLevel::Info, "{message}");
@@ -205,6 +224,9 @@ async fn main() {
                     update_state(&mut state, &state_path, Some(metrics)).await;
                 };
 
+                for line in &state.stdout {
+                    log!(LogLevel::Info, "{}", line.1);
+                }
 
             }
 
@@ -213,7 +235,6 @@ async fn main() {
                 exit_graceful.store(true, Ordering::Relaxed);
             }
         }
-        
 
         if reload.load(Ordering::Relaxed) {
             log!(LogLevel::Debug, "Reloading");
@@ -234,11 +255,12 @@ async fn main() {
                 // We're in a weird state kys and let systemd try again.
                 std::process::exit(100)
             }
-            
+
             // creating new service
             child = create_child(&mut state, &state_path, &settings).await;
             log!(LogLevel::Info, "New child process spawned.");
             state.status = Status::Running;
+            state.pid = std::process::id();
             update_state(&mut state, &state_path, None).await;
 
             reload.store(false, Ordering::Relaxed);

@@ -1,7 +1,7 @@
 use artisan_middleware::dusa_collection_utils::log;
-use artisan_middleware::dusa_collection_utils::log::LogLevel;
-use artisan_middleware::dusa_collection_utils::rwarc::LockWithTimeout;
-use artisan_middleware::dusa_collection_utils::types::PathType;
+use artisan_middleware::dusa_collection_utils::logger::LogLevel;
+use artisan_middleware::dusa_collection_utils::types::pathtype::PathType;
+use artisan_middleware::dusa_collection_utils::types::rwarc::LockWithTimeout;
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::channel;
 use std::thread;
@@ -39,9 +39,9 @@ pub async fn monitor_directory(
     // Normalize ignored subdirectory paths for comparison
     let ignored_subdirs: Vec<PathType> = if let Some(subdirs) = ignored_subdirs {
         subdirs
-        .into_iter()
-        .map(|path| PathType::PathBuf(dir.join(path))) // Convert to full paths relative to the monitored directory
-        .collect()
+            .into_iter()
+            .map(|path| PathType::PathBuf(dir.join(path))) // Convert to full paths relative to the monitored directory
+            .collect()
     } else {
         Vec::new()
     };
@@ -66,7 +66,9 @@ pub async fn monitor_directory(
 
                         // Check if the event affects ignored subdirectories
                         let should_ignore = event.paths.iter().any(|path| {
-                            ignored_subdirs.iter().any(|ignored| path.starts_with(ignored))
+                            ignored_subdirs
+                                .iter()
+                                .any(|ignored| path.starts_with(ignored))
                         });
 
                         if should_ignore {

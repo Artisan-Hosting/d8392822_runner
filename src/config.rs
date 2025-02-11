@@ -1,12 +1,20 @@
 use artisan_middleware::{
-    aggregator::Status, config::AppConfig, dusa_collection_utils, state_persistence::{update_state, AppState, StatePersistence}, timestamp::current_timestamp, version::{aml_version, str_to_version}
+    aggregator::Status,
+    config::AppConfig,
+    dusa_collection_utils,
+    state_persistence::{update_state, AppState, StatePersistence},
+    timestamp::current_timestamp,
+    version::{aml_version, str_to_version},
 };
 use colored::Colorize;
 use config::{Config, ConfigError, File};
-use dusa_collection_utils::{
-    log::{set_log_level, LogLevel}, stringy::Stringy, types::PathType, version::{SoftwareVersion, Version, VersionCode},
-};
 use dusa_collection_utils::log;
+use dusa_collection_utils::{
+    logger::{set_log_level, LogLevel},
+    types::pathtype::PathType,
+    types::stringy::Stringy,
+    version::{SoftwareVersion, Version, VersionCode},
+};
 use serde::Deserialize;
 use std::fmt;
 
@@ -81,17 +89,18 @@ impl AppSpecificConfig {
     /// Converts ignored_subdirs strings into PathType objects relative to the monitor_path
     pub fn ignored_paths(&self) -> Option<Vec<PathType>> {
         let base_path = self.safe_path(); // Canonicalize the monitor path
-        
-        let sub_dirs: Vec<PathType> = self.ignored_subdirs
+
+        let sub_dirs: Vec<PathType> = self
+            .ignored_subdirs
             .iter()
             .map(|subdir| PathType::PathBuf(base_path.join(subdir))) // Join each subdir to the base path
             .collect();
 
         if sub_dirs.is_empty() {
-            return None
+            return None;
         }
 
-        return Some(sub_dirs)
+        return Some(sub_dirs);
     }
 }
 
@@ -142,6 +151,8 @@ pub async fn generate_application_state(state_path: &PathType, config: &AppConfi
             loaded_data.config.log_level = config.log_level;
             loaded_data.status = Status::Starting;
             loaded_data.pid = std::process::id();
+            loaded_data.stderr.clear();
+            loaded_data.stdout.clear();
             set_log_level(loaded_data.config.log_level);
             loaded_data.error_log.clear();
             update_state(&mut loaded_data, &state_path, None).await;
@@ -164,7 +175,7 @@ pub async fn generate_application_state(state_path: &PathType, config: &AppConfi
                     let library_version: Version = aml_version();
                     let software_version: Version =
                         str_to_version(env!("CARGO_PKG_VERSION"), Some(VersionCode::Production));
-            
+
                     SoftwareVersion {
                         application: software_version,
                         library: library_version,
@@ -172,6 +183,8 @@ pub async fn generate_application_state(state_path: &PathType, config: &AppConfi
                 },
                 system_application: false,
                 status: Status::Starting,
+                stderr: Vec::new(),
+                stdout: Vec::new(),
             };
             state.data = String::from("Initializing");
             state.config.debug_mode = config.debug_mode;
