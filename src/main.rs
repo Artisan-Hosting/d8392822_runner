@@ -1,7 +1,7 @@
 use artisan_middleware::{
     aggregator::Status,
     config::AppConfig,
-    dusa_collection_utils::{self},
+    dusa_collection_utils::{self, logger::set_log_level},
     process_manager::SupervisedChild,
     state_persistence::{log_error, update_state, wind_down_state, AppState, StatePersistence},
 };
@@ -102,11 +102,19 @@ async fn main() {
         false => {
             log!(LogLevel::Error, "Failed to spawn child process");
             let error = ErrorArrayItem::new(Errors::GeneralError, "child not spawned".to_string());
+            
+            set_log_level(LogLevel::Trace);
+            for lines in &state.stdout {
+                log!(LogLevel::Trace, "{}", lines.1);
+            }
+            
             log_error(&mut state, error, &state_path).await;
             wind_down_state(&mut state, &state_path).await;
             std::process::exit(100);
         }
     }
+    child.monitor_stdx().await;
+    child.monitor_usage().await;
     let mut change_count = 0;
     let trigger_count = settings.changes_needed;
 
@@ -223,11 +231,6 @@ async fn main() {
                     state.status = Status::Running;
                     update_state(&mut state, &state_path, Some(metrics)).await;
                 };
-
-                for line in &state.stdout {
-                    log!(LogLevel::Info, "{}", line.1);
-                }
-
             }
 
             _ = tokio::signal::ctrl_c() => {
